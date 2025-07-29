@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f9fa; }
+    .container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 32px; }
+    h1 { text-align: center; color: #008080; }
+    .links { display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; }
+    .links button { padding: 12px 28px; font-size: 1.1rem; border: none; border-radius: 6px; background: #e0f7fa; color: #008080; cursor: pointer; transition: background 0.2s; }
+    .links button:hover { background: #b2ebf2; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
+    th { background: #e0f7fa; }
+    .empty { text-align: center; color: #888; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Dashboard</h1>
+    <div class="links">
+      <button onclick="loadData('contact')">Contact Messages</button>
+      <button onclick="loadData('apply')">Applications</button>
+    </div>
+    <div id="data-section"></div>
+  </div>
+  <script>
+    async function loadData(type) {
+      let url = '';
+      let headers = '';
+      if (type === 'contact') {
+        url = '/api/contact';
+        headers = ['Name', 'Email', 'Message', 'Delete'];
+      } else if (type === 'apply') {
+        url = '/api/apply';
+        headers = ['Name', 'Service', 'View', 'Delete'];
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      let html = '';
+      if (Array.isArray(data) && data.length > 0) {
+        html += '<table><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+        data.forEach(item => {
+          html += '<tr>';
+          if (type === 'contact') {
+            html += `<td>${item.name || ''}</td><td>${item.email || ''}</td><td>${item.message || ''}</td>`;
+            html += `<td><button onclick="deleteItem('${type}','${item._id}')">Delete</button></td>`;
+          } else {
+            html += `<td>${item.name || ''}</td><td>${item.type || ''}</td>`;
+            html += `<td><button class="view-btn" data-app='${encodeURIComponent(JSON.stringify(item))}'>View</button></td>`;
+            html += `<td><button onclick="deleteItem('${type}','${item._id}')">Delete</button></td>`;
+          }
+          html += '</tr>';
+        });
+        html += '</table>';
+      } else {
+        html = `<div class="empty">No data found.</div>`;
+      }
+      document.getElementById('data-section').innerHTML = html;
+    }
+
+    async function deleteItem(type, id) {
+      let url = '';
+      if (type === 'contact') url = '/api/contact/' + id;
+      else url = '/api/apply/' + id;
+      if (confirm('Are you sure you want to delete this item?')) {
+        await fetch(url, { method: 'DELETE' });
+        loadData(type);
+      }
+    }
+
+    function viewApplication(item) {
+      if (typeof item === 'string') item = JSON.parse(decodeURIComponent(item));
+      let details = '<h3>Application Details</h3><ul style="list-style:none;padding:0;">';
+      for (const [key, value] of Object.entries(item)) {
+        if (key === '_id' || key === '__v' || key === 'createdAt') continue;
+        details += `<li><strong>${key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}:</strong> ${value || ''}</li>`;
+      }
+      details += '</ul>';
+      showModal(details);
+    }
+
+    function showModal(content) {
+      let modal = document.getElementById('modal-popup');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-popup';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
+        modal.style.background = 'rgba(0,0,0,0.4)';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.innerHTML = '<div id="modal-content" style="background:#fff;padding:32px 24px;border-radius:12px;max-width:400px;width:90%;position:relative;"></div>';
+        document.body.appendChild(modal);
+      }
+      document.getElementById('modal-content').innerHTML = content + '<br><button onclick="closeModal()" style="margin-top:18px;padding:8px 24px;border:none;background:#43e97b;color:#fff;border-radius:6px;cursor:pointer;">Close</button>';
+      modal.style.display = 'flex';
+    }
+    function closeModal() {
+      const modal = document.getElementById('modal-popup');
+      if (modal) modal.style.display = 'none';
+    }
+
+    // Add event delegation for view buttons
+    document.addEventListener('click', function(e) {
+      if (e.target && e.target.classList.contains('view-btn')) {
+        const data = e.target.getAttribute('data-app');
+        if (data) viewApplication(JSON.parse(decodeURIComponent(data)));
+      }
+    });
+  </script>
+</body>
+</html> 

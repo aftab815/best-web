@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BNWO Admin Panel</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fa; color: #222; margin: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); padding: 32px; }
+    h1 { color: #00796b; text-align: center; }
+    .login-form, .messages-table { width: 100%; }
+    .login-form input { width: 100%; padding: 12px; margin-bottom: 16px; border-radius: 8px; border: 1px solid #43e97b; }
+    .login-form button { width: 100%; background: #43e97b; color: #fff; font-weight: bold; border: none; border-radius: 8px; padding: 12px; cursor: pointer; font-size: 1.1rem; }
+    .login-form button:hover { background: #00796b; }
+    .error { color: #e53935; margin-bottom: 12px; text-align: center; }
+    .logout-btn { float: right; background: #e53935; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor: pointer; margin-bottom: 18px; }
+    .logout-btn:hover { background: #b71c1c; }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #e0e0e0; text-align: left; }
+    th { background: #e6fff3; color: #00796b; }
+    tr:last-child td { border-bottom: none; }
+    .delete-btn { background: #e53935; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+    .delete-btn:hover { background: #b71c1c; }
+    @media (max-width: 700px) { .container { padding: 12px; } th, td { font-size: 0.97em; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Admin Panel</h1>
+    <div id="login-section">
+      <form class="login-form" onsubmit="return login(event)">
+        <div class="error" id="login-error" style="display:none;"></div>
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button type="submit">Login</button>
+      </form>
+    </div>
+    <div id="messages-section" style="display:none;">
+      <button class="logout-btn" onclick="logout()">Logout</button>
+      <h2 style="color:#00796b; margin-top:0;">Contact Messages</h2>
+      <table class="messages-table">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Message</th><th>Date</th><th>Delete</th></tr>
+        </thead>
+        <tbody id="messages-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    const API = 'http://localhost:5000/api';
+    function showLogin() {
+      document.getElementById('login-section').style.display = '';
+      document.getElementById('messages-section').style.display = 'none';
+    }
+    function showMessages() {
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('messages-section').style.display = '';
+    }
+    function login(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      fetch(API + '/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.token) {
+          localStorage.setItem('adminToken', data.token);
+          loadMessages();
+        } else {
+          document.getElementById('login-error').innerText = data.error || 'Login failed';
+          document.getElementById('login-error').style.display = '';
+        }
+      });
+      return false;
+    }
+    function logout() {
+      localStorage.removeItem('adminToken');
+      showLogin();
+    }
+    function loadMessages() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) return showLogin();
+      fetch(API + '/admin/messages', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(res => {
+        if (res.status === 401) { logout(); return; }
+        return res.json();
+      })
+      .then(data => {
+        if (!Array.isArray(data)) return;
+        showMessages();
+        const tbody = document.getElementById('messages-tbody');
+        tbody.innerHTML = '';
+        data.forEach(msg => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${msg.name}</td><td>${msg.email}</td><td>${msg.message}</td><td>${new Date(msg.createdAt).toLocaleString()}</td><td><button class='delete-btn' onclick='deleteMsg("${msg._id}")'>Delete</button></td>`;
+          tbody.appendChild(tr);
+        });
+      });
+    }
+    function deleteMsg(id) {
+      if (!confirm('Delete this message?')) return;
+      const token = localStorage.getItem('adminToken');
+      fetch(API + '/admin/messages/' + id, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      })
+      .then(res => {
+        if (res.status === 401) { logout(); return; }
+        return res.json();
+      })
+      .then(() => loadMessages());
+    }
+    // Auto-login if token exists
+    if (localStorage.getItem('adminToken')) loadMessages();
+  </script>
+</body>
+</html> 
